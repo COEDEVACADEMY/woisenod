@@ -1,3 +1,4 @@
+
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -18,6 +19,12 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  memorychip: 'memory',
+  sdcard: 'sd-card',
+  'play.circle': 'play-arrow',
+  trash: 'delete',
+  'square.and.arrow.up': 'share',
+  pencil: 'edit',
 } as IconMapping;
 
 /**
@@ -28,12 +35,12 @@ const MAPPING = {
 export function IconSymbol({
   name,
   size = 24,
-  color,
+  color = '#000',
   style,
 }: {
   name: IconSymbolName;
   size?: number;
-  color: string | OpaqueColorValue;
+  color?: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {

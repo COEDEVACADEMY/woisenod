@@ -1,98 +1,111 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import 'react-native-get-random-values';
+import { useState, useEffect } from 'react';
+import { ThemedText } from '../../components/themed-text';
+import { ThemedView } from '../../components/themed-view';
+import { Button } from 'tamagui';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { v4 as uuidv4 } from 'uuid';
+import { Alert, StyleSheet, Image } from 'react-native';
+import {
+  useAudioRecorder,
+  useAudioRecorderState,
+  RecordingPresets,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+} from 'expo-audio';
+import { Mic, Square } from '@tamagui/lucide-icons';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    (async () => {
+      const status = await requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        Alert.alert('Permission to access microphone was denied');
+      }
+
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+    })();
+  }, []);
+
+  async function startRecording() {
+    try {
+      await audioRecorder.prepareToRecordAsync();
+      await audioRecorder.record();
+    } catch (err: any) {
+      console.error("Failed to start recording", err);
+      let errorMessage = 'An unknown error occurred while trying to start the recording.';
+      if (typeof err === 'object' && err !== null) {
+        errorMessage = `Error: ${err.message || 'No message'}\nCode: ${err.code || 'No code'}\nStack: ${err.stack || 'No stack'}`;
+      } else if (err) {
+        errorMessage = String(err);
+      }
+      Alert.alert('Failed to Start Recording', errorMessage);
+    }
+  }
+
+  async function stopRecording() {
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (uri) {
+        const caption = "My Recording";
+        console.log('Recording stopped and stored at', uri);
+        const existingRecordings = await AsyncStorage.getItem('recordings');
+        const recordings = existingRecordings ? JSON.parse(existingRecordings) : [];
+        const newRecording = {
+          id: uuidv4(),
+          fileUri: uri,
+          caption: caption,
+          createdAt: new Date().toISOString(),
+        };
+        const updatedRecordings = [...recordings, newRecording];
+        await AsyncStorage.setItem('recordings', JSON.stringify(updatedRecordings));
+        Alert.alert('Recording Saved', `Saved as "${caption}"`);
+      }   } catch (error) {
+      console.error('Failed to save recording metadata', error);
+      Alert.alert('Error', 'Failed to save recording.');
+    }
+  }
+
+  return (
+    <ThemedView style={styles.container}>
+      <Image source={require('@/assets/images/logo.png')} style={styles.logo} />
+      <ThemedText type="title">Voice Recorder</ThemedText>
+      <Button
+        size="$5"
+        onPress={recorderState.isRecording ? stopRecording : startRecording}
+        icon={recorderState.isRecording ? <Square /> : <Mic />}
+        theme={recorderState.isRecording ? "red" : "blue"}
+      >
+        {recorderState.isRecording ? 'Stop Recording' : 'Start Recording'}
+      </Button>
+      <ThemedText style={styles.timerText}>{new Date(recorderState.durationMillis).toISOString().substr(11, 8)}</ThemedText>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    padding: 24,
+    gap: 24,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  timerText: {
+    fontSize: 24,
+    fontVariant: ['tabular-nums'],
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: 24,
+  }
 });
